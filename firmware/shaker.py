@@ -30,11 +30,6 @@ class MIDIExample(MIDIInterface):
         print(f"RX Control channel {channel} controller {controller} value {value}")
 
 
-# TODO: read accelerometer
-# MPU6050 drivers
-# https://github.com/OneMadGypsy/upy-motion/blob/main/mpu6050.py
-# FIFO start issue, needed reset. https://stackoverflow.com/questions/60419390/mpu-6050-correctly-reading-data-from-the-fifo-register
-
 from mpu6050 import MPU6050
 from machine import Pin
 import machine
@@ -44,6 +39,7 @@ def read_accelerometer():
 
     i2c = machine.I2C(sda=Pin(0), scl=Pin(1), freq=100_000)
     mpu = MPU6050(i2c)
+    print('Accelerometer started')
 
     prev = None
     while True:
@@ -67,9 +63,16 @@ def read_accelerometer():
 
 def main():
 
+    # Sanity check
+    for mag, diff in read_accelerometer():
+        print(mag, diff)
+        break
+    print("Check done. Entering MIDI mode soon")
+    time.sleep_ms(1000)
 
     m = MIDIExample()
-    # Remove builtin_driver=True if you don't want the MicroPython serial REPL available.
+    # Remove builtin_driver=True
+    # if you don't want the MicroPython serial REPL available
     usb.device.get().init(m, builtin_driver=True)
 
     print("Waiting for USB host to configure the interface...")
