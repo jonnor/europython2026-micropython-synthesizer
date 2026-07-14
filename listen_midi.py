@@ -63,6 +63,15 @@ def listen_to_midi(port_name):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-available_ports = mido.get_input_names()
-target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
-listen_to_midi(target_port)
+def main():
+
+    # FIXME: handle device disconnect and reconnect
+    while True:
+
+        available_ports = mido.get_input_names()
+        target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
+        listen_to_midi(target_port)
+
+if __name__ == '__main__':
+    main()
+

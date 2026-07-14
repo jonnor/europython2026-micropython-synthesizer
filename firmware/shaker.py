@@ -58,9 +58,6 @@ def read_accelerometer():
             diff = mag - prev
             yield mag, diff
 
-        # FIXME: get rid of blocking sleep
-        time.sleep(0.05)
-
 def main():
 
     # Sanity check
@@ -70,17 +67,24 @@ def main():
     print("Check done. Entering MIDI mode soon")
     time.sleep_ms(1000)
 
-    m = MIDIExample()
+    midi = MIDIExample()
     # Remove builtin_driver=True
     # if you don't want the MicroPython serial REPL available
-    usb.device.get().init(m, builtin_driver=True)
+    usb.device.get().init(midi, builtin_driver=True)
 
     print("Waiting for USB host to configure the interface...")
 
-    while not m.is_open():
+    start = time.time()
+    max_start = 5.0
+    while not midi.is_open():
         time.sleep_ms(100)
+        since_start = time.time() - start
+        if since_start > max_start:
+            raise Exception(f"Start timeout {since_start}")
 
     print("Starting MIDI loop...")
+    time.sleep_ms(1000)
+    print("running...")
 
     # TX constants
     CHANNEL = 0
@@ -91,20 +95,37 @@ def main():
 
     control_val = 0
 
-    while m.is_open():
+    note_off_time = None
+
+    print("foofo")
+    while midi.is_open():
 
         for mag, diff in read_accelerometer():
 
-            print(diff)
-            if diff > 1000:
-    
-                # FIXME: keep track of note state without time.sleep
-                velocity = 0x40
-                print(f"TX Note On channel {CHANNEL} pitch {PITCH}")
-                m.note_on(CHANNEL, PITCH, velocity)
-                time.sleep(0.01)
-                m.note_off(CHANNEL, PITCH)
+            t = time.ticks_us()
 
+            print(diff)
+
+            if note_off_time is None:
+                # TODO: allow specifying minimum threshold as control
+                # not inside a note
+                if diff > 1000:
+                    # TODO: compute velocity from magnitude/diff
+                    velocity = 0x40
+                    midi.note_on(CHANNEL, PITCH, velocity)
+                    print('nON', CHANNEL, PITCH, velocity)
+                    note_off_time = t + 20000
+
+            # handle note off
+            else:
+                # inside a note
+                if t >= note_off_time:
+                    midi.note_off(CHANNEL, PITCH)
+                    print('nOFF', CHANNEL, PITCH)
+                    note_off_time = None
+
+            # FIXME: get rid of blocking sleep
+            time.sleep(0.05)
 
     print("USB host has reset device, example done.")
 
