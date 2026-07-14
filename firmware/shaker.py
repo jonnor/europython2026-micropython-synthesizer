@@ -39,22 +39,36 @@ from machine import Pin
 import machine
 
 
-def read_accelerometer():
+def read_accelerometer(samplerate, chunk_size=10):
 
     i2c = machine.I2C(sda=Pin(0), scl=Pin(1), freq=100_000)
-    mpu = MPU6050(i2c)
-    print('Accelerometer started')
+    mpu = MPU6050(i2c, fifo_accel=True, fifo_gyro=False, fifo_temp=False)
+
+    mpu.set_dlpf(3) # enable DLPF -> 1kHz base rate
+    actual_samplerate = mpu.set_sample_rate(samplerate)
+    if actual_samplerate != samplerate:
+        raise ValueError(f"Unable to use samplerate {samplerate}")
+    mpu.fifo_enable(True)
+
+    buf = bytearray(chunk_size * mpu.packet_size)
 
     prev = None
     while True:
-        v = mpu.get_values()
-        ax = v['AcX']
-        ay = v['AcY']
-        az = v['AcZ']
+        samples_available = mpu.get_fifo_count()
 
-        yield ax, ay, az
+        if samples_available >= chunk_size:
+            mpu.read_samples_into(buf)
+
+            yield buf
+
+
 
 def main():
+
+    time.sleep(0.5)
+
+
+
 
     detector = Detector()
 
