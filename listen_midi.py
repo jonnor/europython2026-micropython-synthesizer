@@ -45,32 +45,51 @@ synth = TB303()
 
 # MIDI listening logic
 def listen_to_midi(port_name):
-    try:
-        with mido.open_input(port_name) as inport:
-            print(f"Listening for MIDI messages on {port_name}...")
-            for msg in inport:
-                print(msg) # Print the received message
-                if msg.type == 'note_on' and msg.velocity > 0:
 
+    with mido.open_input(port_name) as inport:
+
+        last_check = time.time()
+        while True:
+            for msg in inport.iter_pending():  # non-blocking
+
+                print(msg) # Print the received message
+
+                if msg.type == 'note_on' and msg.velocity > 0:
                     print(f"Playing note: {msg.note}, velocity: {msg.velocity}")
-                    synth.play(note=msg.note/3, velocity=msg.velocity, duration=1) # Fixed 0.5 second duration
-    except OSError as e:
-        print(f"Error opening MIDI port '{port_name}': {e}")
-        print("Please ensure the MIDI device is connected and the port name is correct.")
-        print("Available ports:", mido.get_input_names())
-    except KeyboardInterrupt:
-        print("\nStopping MIDI listener.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+                    # FIXME: avoid fixed duration
+                    synth.play(note=msg.note/3, velocity=msg.velocity, duration=1)
+
+            if time.time() - last_check > 1.0:
+                current_ports = set(mido.get_input_names())
+                if port_name not in current_ports:
+                    print("Device disconnected!")
+                    break
+                last_check = time.time()
+
+            time.sleep(0.01)  # avoid busy-spinning the CPU
+
 
 def main():
+
+    target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
 
     # FIXME: handle device disconnect and reconnect
     while True:
 
-        available_ports = mido.get_input_names()
-        target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
-        listen_to_midi(target_port)
+        try:
+
+            print("Checking...")
+            available_ports = mido.get_input_names()
+            if target_port in available_ports:
+
+                print('Connect')
+                listen_to_midi(target_port)
+
+        except KeyboardInterrupt:
+            print("Quit")
+            break
+
+        time.sleep(1.0)
 
 if __name__ == '__main__':
     main()

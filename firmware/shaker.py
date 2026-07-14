@@ -104,7 +104,8 @@ def main():
 
             t = time.ticks_us()
 
-            print(diff)
+            if diff > 300:
+                print(diff)
 
             if note_off_time is None:
                 # TODO: allow specifying minimum threshold as control
