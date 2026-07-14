@@ -57,7 +57,7 @@ def listen_to_midi(port_name):
                 if msg.type == 'note_on' and msg.velocity > 0:
                     print(f"Playing note: {msg.note}, velocity: {msg.velocity}")
                     # FIXME: avoid fixed duration
-                    synth.play(note=msg.note/3, velocity=msg.velocity, duration=1)
+                    synth.play(note=msg.note, velocity=msg.velocity, duration=1)
 
             if time.time() - last_check > 1.0:
                 current_ports = set(mido.get_input_names())

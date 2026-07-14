@@ -58,10 +58,6 @@ def main():
 
     detector = Detector()
 
-    # Sanity check
-    for mag, diff, ax, ay, az in read_accelerometer():
-        print(mag, diff)
-        break
     print("Check done. Entering MIDI mode soon")
     time.sleep_ms(1000)
 
@@ -107,11 +103,11 @@ def main():
             # UNCOMMENT to clean up data_dir
             #recorder.delete()
 
-            recorder.start()
+            #recorder.start()
 
             decoded = array.array('h', [0, 0, 0]) # int16 samples
 
-            for mag, diff, ax, ay, az in read_accelerometer():
+            for ax, ay, az in read_accelerometer():
 
                 t = time.ticks_us()
 
@@ -120,13 +116,13 @@ def main():
                 onset = detector.process(ax, ay, az)
                 velocity = 0x40
 
-                if diff > 300:
-                    print(diff)
+                if onset > 100:
+                    print(onset)
 
                 if note_off_time is None:
                     # TODO: allow specifying onset threshold as control
                     # not inside a note
-                    if onset > 0.9:
+                    if onset > 1000:
                         midi.note_on(CHANNEL, PITCH, velocity)
                         print('nON', CHANNEL, PITCH, velocity)
                         note_off_time = t + 20000
