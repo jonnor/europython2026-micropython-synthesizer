@@ -73,11 +73,10 @@ def main():
 
     target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
 
-    # FIXME: handle device disconnect and reconnect
+
     while True:
 
         try:
-
             print("Checking...")
             available_ports = mido.get_input_names()
             if target_port in available_ports:

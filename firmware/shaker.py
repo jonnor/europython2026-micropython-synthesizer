@@ -1,9 +1,12 @@
 
 import math
 import time
+import array
 
 import usb.device
 from usb.device.midi import MIDIInterface
+
+from recorder import Recorder
 
 # Example
 # https://github.com/micropython/micropython-lib/blob/master/micropython/usb/examples/device/midi_example.py
@@ -56,12 +59,12 @@ def read_accelerometer():
             prev = mag
         else:
             diff = mag - prev
-            yield mag, diff
+            yield mag, diff, ax, ay, az
 
 def main():
 
     # Sanity check
-    for mag, diff in read_accelerometer():
+    for mag, diff, ax, ay, az in read_accelerometer():
         print(mag, diff)
         break
     print("Check done. Entering MIDI mode soon")
@@ -95,38 +98,58 @@ def main():
 
     control_val = 0
 
+    file_duration = 5.0
+    samplerate = 20.0
+    data_dir = 'data'
+
     note_off_time = None
 
     print("foofo")
     while midi.is_open():
 
-        for mag, diff in read_accelerometer():
+        with Recorder(samplerate, file_duration, directory=data_dir) as recorder:
 
-            t = time.ticks_us()
+            # UNCOMMENT to clean up data_dir
+            #recorder.delete()
 
-            if diff > 300:
-                print(diff)
+            recorder.start()
 
-            if note_off_time is None:
-                # TODO: allow specifying minimum threshold as control
-                # not inside a note
-                if diff > 1000:
-                    # TODO: compute velocity from magnitude/diff
-                    velocity = 0x40
-                    midi.note_on(CHANNEL, PITCH, velocity)
-                    print('nON', CHANNEL, PITCH, velocity)
-                    note_off_time = t + 20000
+            decoded = array.array('h', [0, 0, 0]) # int16 samples
 
-            # handle note off
-            else:
-                # inside a note
-                if t >= note_off_time:
-                    midi.note_off(CHANNEL, PITCH)
-                    print('nOFF', CHANNEL, PITCH)
-                    note_off_time = None
+            for mag, diff, ax, ay, az in read_accelerometer():
 
-            # FIXME: get rid of blocking sleep
-            time.sleep(0.05)
+                t = time.ticks_us()
+
+                if diff > 300:
+                    print(diff)
+
+                if note_off_time is None:
+                    # TODO: allow specifying minimum threshold as control
+                    # not inside a note
+                    if diff > 1000:
+                        # TODO: compute velocity from magnitude/diff
+                        velocity = 0x40
+                        midi.note_on(CHANNEL, PITCH, velocity)
+                        print('nON', CHANNEL, PITCH, velocity)
+                        note_off_time = t + 20000
+
+                # handle note off
+                else:
+                    # inside a note
+                    if t >= note_off_time:
+                        midi.note_off(CHANNEL, PITCH)
+                        print('nOFF', CHANNEL, PITCH)
+                        note_off_time = None
+
+                # record data (if enabled)
+                decoded[0] = ax
+                decoded[1] = ay
+                decoded[2] = az
+                recorder.process(decoded)
+
+                # FIXME: get rid of blocking sleep
+                wait = 1.0 / samplerate
+                time.sleep(wait)
 
     print("USB host has reset device, example done.")
 
