@@ -7,6 +7,7 @@ import usb.device
 from usb.device.midi import MIDIInterface
 
 from recorder import Recorder
+from process import Detector
 
 # Example
 # https://github.com/micropython/micropython-lib/blob/master/micropython/usb/examples/device/midi_example.py
@@ -46,22 +47,16 @@ def read_accelerometer():
 
     prev = None
     while True:
-
         v = mpu.get_values()
         ax = v['AcX']
         ay = v['AcY']
         az = v['AcZ']
 
-        mag = math.sqrt((ax*ax) + (ay*ay) + (az*az))
-
-        if prev is None:
-            # first sample
-            prev = mag
-        else:
-            diff = mag - prev
-            yield mag, diff, ax, ay, az
+        yield ax, ay, az
 
 def main():
+
+    detector = Detector()
 
     # Sanity check
     for mag, diff, ax, ay, az in read_accelerometer():
@@ -120,15 +115,18 @@ def main():
 
                 t = time.ticks_us()
 
+                # TODO: compute velocity from magnitude/diff    
+                # velocity =                 
+                onset = detector.process(ax, ay, az)
+                velocity = 0x40
+
                 if diff > 300:
                     print(diff)
 
                 if note_off_time is None:
-                    # TODO: allow specifying minimum threshold as control
+                    # TODO: allow specifying onset threshold as control
                     # not inside a note
-                    if diff > 1000:
-                        # TODO: compute velocity from magnitude/diff
-                        velocity = 0x40
+                    if onset > 0.9:
                         midi.note_on(CHANNEL, PITCH, velocity)
                         print('nON', CHANNEL, PITCH, velocity)
                         note_off_time = t + 20000
