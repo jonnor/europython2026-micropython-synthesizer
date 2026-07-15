@@ -50,7 +50,7 @@ def test_sounds(drum_map):
 
     # 16-step pattern (1 bar of 16th notes)
     pattern = [
-        #('kick',  [0, 4, 8, 12]),
+        ('kick',  [0, 4, 8, 12]),
         ('snare', [4, 12]),
         ('hihat', list(range(16))),   # every step
     ]
@@ -68,9 +68,9 @@ def main():
     target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
 
     DRUM_MAP = {
-        36: (Kick(end_freq=140), 50/1000),
-        38: (Snare(), 50/1000),
-        42: (Hihat(), 50/1000),
+        36: (Kick(), 80/1000),
+        38: (Snare(), 100/1000),
+        42: (Hihat(), 30/1000),
     }
 
     test_sounds(DRUM_MAP)

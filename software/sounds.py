@@ -29,21 +29,32 @@ class Kick(GatedSound):
         self.start_freq = start_freq
         self.end_freq = end_freq
         
-        self.osc0 = Oscillator('sine')
+        # XXX: using osc sine does not work when freq is below 200??
+        self.osc0 = Oscillator('square')
+        self.tone_filter = ButterFilter(btype='lowpass', db=36)
         
+
     def forward(self):
         g0 = self.gate()
         
         e_pitch = self.env_pitch(g0)
         freq = self.end_freq + e_pitch * (self.start_freq - self.end_freq)
-        
+
         a0 = self.osc0(freq=freq)
+        a0 = self.tone_filter(a0, freq=self.start_freq * 4.5)
+
         e_amp = self.env_amp(g0)
         
-        out = a0 * e_amp
-        out = out * 20
+        return a0 * e_amp
 
-        return out
+    def _forward(self):
+        g0 = self.gate()
+        
+        n0 = self.noise()
+        n0 = self.filter(n0, freq=self.cutoff)
+        e0 = self.env0(g0)
+        
+        return n0 * e0
 
 
 class Hihat(GatedSound):
