@@ -106,8 +106,6 @@ async def main():
 
     time.sleep(0.5)
 
-    detector = Detector()
-
     print("Check done. Entering MIDI mode soon")
     time.sleep_ms(1000)
 
@@ -142,9 +140,11 @@ async def main():
     file_duration = 5.0
     samplerate = 200
     data_dir = 'data'
+    retrigger_limit_ms = 10
 
     note_off_time = None
 
+    detector = Detector(samplerate=samplerate, attack_ms=4.0)
     reader = AccelerometerReader(samplerate=samplerate)
 
     while midi.is_open():
@@ -169,7 +169,8 @@ async def main():
                 #print(t, onset)
 
                 if onset > 200:
-                    print(onset)
+                    pass
+                    #print(onset)
 
                 if note_off_time is None:
                     # TODO: allow specifying onset threshold as control
@@ -177,7 +178,7 @@ async def main():
                     if onset > 1000:
                         midi.note_on(CHANNEL, PITCH, velocity)
                         print('nON', CHANNEL, PITCH, velocity)
-                        note_off_time = t + 20000
+                        note_off_time = t + (retrigger_limit_ms*1000)
 
                 # handle note off
                 else:

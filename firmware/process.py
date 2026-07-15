@@ -149,6 +149,9 @@ class Detector:
         # Compute overall motion magnitude
         mag = math.sqrt((mx*mx) + (my*my) + (mz*mz))
 
+        # Scale from int16 range to 1.0 scaled floats
+        mag = mag / 2**15
+
         #print(mag)
 
         # Compute jerk and envelope
@@ -160,11 +163,14 @@ class Detector:
             self.env = env
         else:
             self.mag = mag - self.mag
-            self.env = self.env + self.env_alpha * (mag - self.env)  
+            env = self.env + self.env_alpha * (mag - self.env)  
+            jerk = env - self.env 
+            self.env = env
 
-        # TODO: return velocity also
+        pos_jerk = max(jerk, 0)
+        # trigger only if there is a large value AND a large change
+        onset = pos_jerk * self.env
 
-        onset = self.env
         return onset
 
 def read_recording(data_dir):
@@ -185,21 +191,23 @@ def read_recording(data_dir):
 
 def main():
 
-    detector = Detector(samplerate=20)
+    samplerate  = 200
 
-    data_dir = 'data1/data/'
+    data_dir = 'data2/data/'
     out_path = 'out.csv'
 
+    detector = Detector(samplerate=samplerate, attack_ms=4.0)
     sample_idx = 0
     with open(out_path, 'w') as f:
 
-        writer = DictWriter(f, fieldnames=['sample', 'acc_x', 'acc_y', 'acc_z', 'onset'])
+        writer = DictWriter(f, fieldnames=['sample', 't', 'acc_x', 'acc_y', 'acc_z', 'onset'])
         writer.writeheader()
 
         for ax, ay, az in read_recording(data_dir):
 
             onset = detector.process(ax, ay, az)
-            d = dict(sample=sample_idx, acc_x=ax, acc_y=ay, acc_z=az, onset=onset)
+            t = sample_idx * (1.0/samplerate)
+            d = dict(sample=sample_idx, acc_x=ax, acc_y=ay, acc_z=az, onset=onset, t=t)
             writer.writerow(d)
             sample_idx += 1
 
