@@ -2,6 +2,7 @@
 import math
 import time
 import array
+import asyncio
 
 import usb.device
 from usb.device.midi import MIDIInterface
@@ -39,36 +40,71 @@ from machine import Pin
 import machine
 
 
-def read_accelerometer(samplerate, chunk_size=10):
+class AccelerometerReader:
+    """
+    Async iterator that sets up the MPU6050/6500 FIFO, checks FIFO periodically,
+    and yields one sample tuple (ax, ay, az) at a time.
+    """
+    def __init__(self, samplerate=200, poll_interval=0.1, min_packets=4, max_packets=None):
+        self.samplerate = samplerate
+        self.poll_interval = poll_interval
+        self.min_packets = min_packets
+        self.max_packets = max_packets
+ 
+        self.mpu = None
+        self.buf = None
+        self._pending = iter(())  # samples from the current buffer, not yet yielded
+        self._started = False
+ 
+    def _start(self):
+        i2c = machine.I2C(sda=Pin(0), scl=Pin(1), freq=100_000)
+        self.mpu = MPU6050(i2c, fifo_accel=True, fifo_gyro=False, fifo_temp=False)
+        self.mpu.set_dlpf(3)  # enable DLPF -> 1kHz base rate
+ 
+        actual_samplerate = self.mpu.set_sample_rate(self.samplerate)
+        if actual_samplerate != self.samplerate:
+            raise ValueError(f"Unable to use samplerate {self.samplerate}")
+ 
+        self.mpu.fifo_enable(True)
+ 
+        # buffer sized for the max number of packets we'll ever read at once
+        max_buf_packets = self.max_packets if self.max_packets is not None else 512 // self.mpu.packet_size
+        self.buf = bytearray(max_buf_packets * self.mpu.packet_size)
+ 
+        self._started = True
+ 
+    def __aiter__(self):
+        return self
+ 
+    async def __anext__(self):
+        if not self._started:
+            self._start()
+ 
+        # drain whatever we already read before polling again
+        for sample in self._pending:
+            return sample
+ 
+        while True:
+            n_packets = self.mpu.get_fifo_count()
+ 
+            if n_packets >= self.min_packets:
+                if self.max_packets is not None:
+                    n_packets = min(n_packets, self.max_packets)
+ 
+                n_bytes = n_packets * self.mpu.packet_size
+                view = memoryview(self.buf)[:n_bytes]
+                self.mpu.read_samples_into(view)
+ 
+                self._pending = self.mpu.parse_samples(view)
+                for sample in self._pending:
+                    return sample
+ 
+            await asyncio.sleep(self.poll_interval)
 
-    i2c = machine.I2C(sda=Pin(0), scl=Pin(1), freq=100_000)
-    mpu = MPU6050(i2c, fifo_accel=True, fifo_gyro=False, fifo_temp=False)
 
-    mpu.set_dlpf(3) # enable DLPF -> 1kHz base rate
-    actual_samplerate = mpu.set_sample_rate(samplerate)
-    if actual_samplerate != samplerate:
-        raise ValueError(f"Unable to use samplerate {samplerate}")
-    mpu.fifo_enable(True)
-
-    buf = bytearray(chunk_size * mpu.packet_size)
-
-    prev = None
-    while True:
-        samples_available = mpu.get_fifo_count()
-
-        if samples_available >= chunk_size:
-            mpu.read_samples_into(buf)
-
-            yield buf
-
-
-
-def main():
+async def main():
 
     time.sleep(0.5)
-
-
-
 
     detector = Detector()
 
@@ -109,7 +145,8 @@ def main():
 
     note_off_time = None
 
-    print("foofo")
+    reader = AccelerometerReader(samplerate=200)
+
     while midi.is_open():
 
         with Recorder(samplerate, file_duration, directory=data_dir) as recorder:
@@ -121,16 +158,17 @@ def main():
 
             decoded = array.array('h', [0, 0, 0]) # int16 samples
 
-            for ax, ay, az in read_accelerometer():
+            async for ax, ay, az in reader:
 
                 t = time.ticks_us()
 
-                # TODO: compute velocity from magnitude/diff    
-                # velocity =                 
                 onset = detector.process(ax, ay, az)
+                # TODO: support velocity also
                 velocity = 0x40
 
-                if onset > 100:
+                #print(t, onset)
+
+                if onset > 200:
                     print(onset)
 
                 if note_off_time is None:
@@ -155,11 +193,8 @@ def main():
                 decoded[2] = az
                 recorder.process(decoded)
 
-                # FIXME: get rid of blocking sleep
-                wait = 1.0 / samplerate
-                time.sleep(wait)
 
     print("USB host has reset device, example done.")
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

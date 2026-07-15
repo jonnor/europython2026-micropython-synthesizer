@@ -47,6 +47,7 @@ ACCEL_BYTES = 6
 TEMP_BYTES = 2
 GYRO_BYTES = 6  # X+Y+Z
 
+import struct
 
 class MPU6050():
     def __init__(self, i2c, addr=0x68, fifo_gyro=True, fifo_accel=True, fifo_temp=False):
