@@ -5,88 +5,10 @@ import time
 import numpy as np
 
 from synthoor import Sound, GatedSound, Envelope, Oscillator, ButterFilter
-
-# https://github.com/Sangarshanan/synthoor/blob/main/tutorial/5.ipynb
-class TB303(GatedSound):
-
-    def __init__(self):
-
-        super().__init__()
-        
-        # Two Envelopes
-        self.env0 = Envelope(
-            0.05, 0, 1, 0.01
-        )
-        self.env1 = Envelope(
-            0, 1, 0, 0,
-        linear=False)
-
-        self.osc0 = Oscillator('saw')
-
-        self.filter = ButterFilter(btype='lowpass')
-
-    def forward(self):
-
-        g0 = self.gate()
-
-        e0 = self.env0(g0)
-        e1 = self.env1(g0, decay=1) * 12 * 10
-
-        a0 = self.osc0(freq=self.freq)
-
-        a1 = self.filter(
-            a0,
-            key_modulation=e1,
-            freq=self.freq,
-        )
-
-        return a1 * e0
-
-class WhiteNoise(Sound):
-    """White noise generator.
-    Note:
-        A WhiteNoise inherits all the methods and properties of a Sound class.
-    """
-    def __init__(self, **kwargs):
-        """"""
-        super().__init__(**kwargs)
-    def forward(self, **kwargs):
-        a0 = np.random.uniform(-1, 1, self.frames)
-        return a0[:, None]
-
-class SubtractiveDrum(GatedSound):
-    def __init__(self):
-        super().__init__()
-        
-        self.env0 = Envelope(0.001, 0, 1, 0.05)   # tone envelope, fast decay
-        self.env1 = Envelope(0.001, 0, 1, 0.15)   # noise envelope, slightly longer
-        
-        self.osc0 = Oscillator('saw')
-        self.noise = WhiteNoise()
-        
-        self.tone_filter = ButterFilter(btype='lowpass')
-        self.noise_filter = ButterFilter(btype='highpass')
-        
-    def forward(self):
-        g0 = self.gate()
-        
-        # Tonal component (the "body")
-        a0 = self.osc0(freq=self.freq)
-        a0 = self.tone_filter(a0, freq=200)
-        e0 = self.env0(g0)
-        
-        # Noise component (the "snap")
-        n0 = self.noise()
-        n0 = self.noise_filter(n0, freq=1500)
-        e1 = self.env1(g0)
-        
-        return a0 * e0 * 0.5 + n0 * e1 * 0.5
-
-
-synth = SubtractiveDrum()
+from sounds import Snare, Kick, Hihat
 
 # MIDI listening logic
-def listen_to_midi(port_name):
+def listen_to_midi(port_name, synths : dict[int, (Sound, )]):
 
     with mido.open_input(port_name) as inport:
 
@@ -99,7 +21,12 @@ def listen_to_midi(port_name):
                 if msg.type == 'note_on' and msg.velocity > 0:
                     print(f"Playing note: {msg.note}, velocity: {msg.velocity}")
                     # FIXME: avoid fixed duration
-                    synth.play(note=msg.note, velocity=msg.velocity, duration=0.1)
+
+                    synth, duration = synths.get(msg.note, None)
+                    if synth is None:
+                        print('Unknown note', msg.note)
+
+                    synth.play(note=msg.note, velocity=msg.velocity, duration=duration)
 
             if time.time() - last_check > 1.0:
                 current_ports = set(mido.get_input_names())
@@ -110,11 +37,46 @@ def listen_to_midi(port_name):
 
             time.sleep(0.01)  # avoid busy-spinning the CPU
 
+GM_NOTES = {
+    'kick': 36,
+    'snare': 38,
+    'hihat': 42,
+}
+
+def test_sounds(drum_map):
+
+    # 16th notes at ~120bpm (adjust to taste)
+    step_duration = 0.25
+
+    # 16-step pattern (1 bar of 16th notes)
+    pattern = [
+        #('kick',  [0, 4, 8, 12]),
+        ('snare', [4, 12]),
+        ('hihat', list(range(16))),   # every step
+    ]
+
+    for step in range(16):
+        for name, steps in pattern:
+            note = GM_NOTES[name]
+            if step in steps:
+                drum, duration = drum_map[note]
+                drum.play(note=note, velocity=0x40, duration=duration)
+        time.sleep(step_duration)
 
 def main():
 
     target_port = "Board in FS mode:Board in FS mode MIDI 1 20:0"
 
+    DRUM_MAP = {
+        36: (Kick(end_freq=140), 50/1000),
+        38: (Snare(), 50/1000),
+        42: (Hihat(), 50/1000),
+    }
+
+    test_sounds(DRUM_MAP)
+    print("DONE")
+
+    return 
 
     while True:
 
