@@ -140,16 +140,16 @@ async def main():
     control_val = 0
 
     file_duration = 5.0
-    samplerate = 20.0
+    samplerate = 200
     data_dir = 'data'
 
     note_off_time = None
 
-    reader = AccelerometerReader(samplerate=200)
+    reader = AccelerometerReader(samplerate=samplerate)
 
     while midi.is_open():
 
-        with Recorder(samplerate, file_duration, directory=data_dir) as recorder:
+        with Recorder(samplerate, file_duration, directory=data_dir, verbose=2) as recorder:
 
             # UNCOMMENT to clean up data_dir
             #recorder.delete()
