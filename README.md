@@ -9,11 +9,11 @@ https://github.com/Sangarshanan/synthoor
 
 TODO
 
-- Fix triggering logic
 - Implement a more drum-type synth soound. Whitenoise+SpectralFilter+ASDR
-- Add velocity control
-- Map orientation to a MIDI control output. Use to modify filters etc
+- Document how to run
 
 Maybe
 
-- Support separate note triggers for different axis?
+- Add velocity control
+- Map orientation to a MIDI control output. Use to modify filters etc
+- Support separate note triggers for different axis

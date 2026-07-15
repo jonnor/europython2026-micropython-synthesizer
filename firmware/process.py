@@ -129,8 +129,6 @@ class Detector:
         self.env_alpha = compute_alpha(attack_ms/1000.0, samplerate)
         assert self.env_alpha < 1.0, (self.env_alpha, attack_ms, samplerate)
 
-        print('env alpha', self.env_alpha)
-
         lowpass = butter2_lowpass(f=gravity_cutoff, sr=samplerate)
         coeff = array.array('f', lowpass)
         self.gravity_filter = GravityEstimatorLowpass(coeff)

@@ -137,10 +137,13 @@ async def main():
 
     control_val = 0
 
-    file_duration = 5.0
     samplerate = 200
-    data_dir = 'data'
     retrigger_limit_ms = 10
+    onset_threshold = 1.0
+
+    data_dir = 'data'
+    file_duration = 5.0
+
 
     note_off_time = None
 
@@ -166,16 +169,10 @@ async def main():
                 # TODO: support velocity also
                 velocity = 0x40
 
-                #print(t, onset)
-
-                if onset > 200:
-                    pass
-                    #print(onset)
-
                 if note_off_time is None:
                     # TODO: allow specifying onset threshold as control
                     # not inside a note
-                    if onset > 1000:
+                    if onset > onset_threshold:
                         midi.note_on(CHANNEL, PITCH, velocity)
                         print('nON', CHANNEL, PITCH, velocity)
                         note_off_time = t + (retrigger_limit_ms*1000)
