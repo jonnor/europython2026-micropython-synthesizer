@@ -2,6 +2,7 @@
 import math
 import os
 import array
+import time
 
 from csv import DictWriter
 
@@ -126,14 +127,18 @@ class Detector:
         self.env = None
 
         self.env_alpha = compute_alpha(attack_ms/1000.0, samplerate)
+        assert self.env_alpha < 1.0, (self.env_alpha, attack_ms, samplerate)
 
         print('env alpha', self.env_alpha)
 
         lowpass = butter2_lowpass(f=gravity_cutoff, sr=samplerate)
-        self.gravity_filter = GravityEstimatorLowpass(lowpass)
+        coeff = array.array('f', lowpass)
+        self.gravity_filter = GravityEstimatorLowpass(coeff)
 
     def process(self, ax, ay, az):
 
+        # Estimate gravity vector / orientation
+        gravity_start = time.ticks_us()
         gravity = self.gravity_filter.update(array.array('f', [ax, ay, az]))
 
         # Isolate motion by subtracting gravity vector
@@ -145,8 +150,10 @@ class Detector:
             mx = ax
             mx = ay
             mx = az
+        gravity_duration = time.ticks_diff(time.ticks_us(), gravity_start)
 
         # Compute overall motion magnitude
+        metrics_start = time.ticks_us()
         mag = math.sqrt((mx*mx) + (my*my) + (mz*mz))
 
         # Scale from int16 range to 1.0 scaled floats
@@ -170,6 +177,7 @@ class Detector:
         pos_jerk = max(jerk, 0)
         # trigger only if there is a large value AND a large change
         onset = pos_jerk * self.env
+        metrics_duration = time.ticks_diff(time.ticks_us(), metrics_start)
 
         return onset
 
@@ -194,24 +202,44 @@ def main():
     samplerate  = 200
 
     data_dir = 'data2/data/'
+    data_dir = 'data/'
     out_path = 'out.csv'
 
+    process_start = time.ticks_ms()
+    process_only_time_ms = 0.0
     detector = Detector(samplerate=samplerate, attack_ms=4.0)
     sample_idx = 0
     with open(out_path, 'w') as f:
 
-        writer = DictWriter(f, fieldnames=['sample', 't', 'acc_x', 'acc_y', 'acc_z', 'onset'])
+        writer = DictWriter(f, fieldnames=['t', 'acc_x', 'acc_y', 'acc_z', 'onset'])
         writer.writeheader()
 
+        # TODO: track read and write times also
         for ax, ay, az in read_recording(data_dir):
 
+            detect_start = time.ticks_us()
             onset = detector.process(ax, ay, az)
             t = sample_idx * (1.0/samplerate)
-            d = dict(sample=sample_idx, acc_x=ax, acc_y=ay, acc_z=az, onset=onset, t=t)
+            detect_duration = time.ticks_diff(time.ticks_us(), detect_start)
+
+            process_only_time_ms += (detect_duration/1000.0)
+
+            # Write output
+            d = dict(acc_x=ax, acc_y=ay, acc_z=az, onset=onset, t=t)
             writer.writerow(d)
             sample_idx += 1
 
-    print('Wrote', out_path, sample_idx)
+    data_duration = (sample_idx / samplerate)
+    total_duration = time.ticks_diff(time.ticks_ms(), process_start) / 1000.0
+
+    process_duration = process_only_time_ms/1000.0
+    realtime_factor = data_duration / process_duration
+
+    per_sample_ms = (process_duration / sample_idx)*1000
+    print(f'Processed {sample_idx} samples ({data_duration:.3f}s) in {total_duration:.3f}s')
+    print(f'Analysis time: {process_duration:.3f}s | {per_sample_ms:.3f} ms/sample | {sample_idx/process_duration:.1f} samples/s | {realtime_factor:.1f}x realtime')
+
+    print('Wrote', out_path)
 
 if __name__ == '__main__':
     main()
